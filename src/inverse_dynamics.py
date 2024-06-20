@@ -2,7 +2,6 @@
 Inverse dynamic class in pyosim
 """
 from pathlib import Path
-
 import opensim as osim
 import os
 

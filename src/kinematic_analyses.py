@@ -1,13 +1,5 @@
-
-
 import opensim as osim
 from pathlib import Path
-from src.osim_utilities import readMotionFile
-import os
-
-
-
-
 
 class bodykinematics:
     def __init__(self, modelfile, outputdir, ikfiles):

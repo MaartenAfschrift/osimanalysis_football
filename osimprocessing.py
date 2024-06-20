@@ -1,12 +1,10 @@
 import opensim as osim
-from src.inverse_dynamics import *
 from src.kinematic_analyses import bodykinematics
-from src.osim_utilities import *
+from src.osim_utilities import osim_subject
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
-from src.utilities import central_difference
 
 matplotlib.use('Qt5Agg') # interactive backend for matplotlib figures
 
@@ -30,12 +28,21 @@ general_id_settings = os.path.join(MainDatapath, 'settings', 'ID_settings.xml')
 forces_settings = os.path.join(MainDatapath, 'settings', 'loads_rightleg.xml')
 my_subject.set_general_id_settings(general_id_settings)
 my_subject.set_generic_external_loads(forces_settings)
-#   - run computations
-my_subject.compute_bodykin(boolRead = True) # compute BK and read results
-my_subject.create_extloads_soccer() # create external load files
-my_subject.compute_inverse_dynamics(boolRead = True) # solve id based kinematics and loads
 
-# some example plots
+#   - run computations
+#my_subject.compute_bodykin(boolRead = True) # compute BK and read results
+my_subject.read_ikfiles()
+my_subject.read_bkfiles()
+#my_subject.create_extloads_soccer() # create external load files
+#my_subject.compute_inverse_dynamics(boolRead = True) # solve id based kinematics and loads
+
+#   - print file with instance that person hits the ball
+file_dt_hit_ball = os.path.join(MainDatapath, 'Timing_hitball.csv')
+my_subject.print_file_timinghit_ball(file_dt_hit_ball)
+
+
+
+
 
 
 

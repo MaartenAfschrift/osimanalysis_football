@@ -90,6 +90,7 @@ class osim_subject:
         self.id_dat = [] # inverse dynamics data
         self.bk_pos = [] # bodykinematics data -- position
         self.bk_vel = [] # bodykinematics data -- velocity
+        self.ik_dat = []
 
         # open model
         self.model = osim.Model(self.modelpath)
@@ -106,8 +107,12 @@ class osim_subject:
             if file.endswith('.mot'):
                 ik_files.append(os.path.join(ikfolder, file))
         # convert to Path objects
-        if not isinstance(self.ikfiles[0], Path):
-            self.ikfiles = [Path(i) for i in self.ikfiles]
+        if not isinstance(ik_files[0], Path):
+            ik_files = [Path(i) for i in ik_files]
+
+        # add to variable
+        self.ikfiles = ik_files
+
         # get number of files
         self.nfiles = len(self.ikfiles)
 
@@ -143,7 +148,7 @@ class osim_subject:
 
     def compute_bodykin(self, boolRead = True):
         # function to compute bodykinematics
-        bkdir = self.bodykin_folder
+        bkdir = (f'{self.bodykin_folder.resolve()}')
         if not os.path.isdir(bkdir):
             os.mkdir(bkdir)
         bodykinematics(self.modelpath, bkdir, self.ikfiles)
@@ -155,14 +160,13 @@ class osim_subject:
     def read_ikfiles(self):
         # read ik files
         self.ikdat = []
-        self.ik_labels = []
         for itrial in self.ikfiles:
             ik_data = self.read_ik(itrial)
             self.ikdat.append(ik_data)
 
     def read_ik(self, ik_file):
         if ik_file.exists():
-            id_data = readMotionFile(ik_file)
+            ik_data = readMotionFile(ik_file)
         else:
             ik_data = []
             print('could find read file ', ik_file)
@@ -175,10 +179,9 @@ class osim_subject:
         self.bk_vel = []
         for itrial in self.ikfiles:
             trialname = f'{itrial.stem}'
-            [bk_pos, bk_vel, bk_labels] = self.read_bodykin(self.bodykin_folder, trialname)
+            [bk_pos, bk_vel] = self.read_bodykin(self.bodykin_folder, trialname)
             self.bk_pos.append(bk_pos)
             self.bk_vel.append(bk_vel)
-            self.bk_header = bk_labels
 
     def read_bodykin(self, bkfolder, trial_stem):
         # path to position and velocity file
@@ -313,8 +316,13 @@ class osim_subject:
 
             # compute release velocity ball based on assumption conservation of linear impulse
             it0 = np.where(df_ik.time >= thit)[0][0]
-            itend = np.where(df_ik.time >= (thit + dt_hit))[0][0]
-            v_ball_post = (p_footR[it0] - p_footR[itend]) / mbal
+            if df_ik.time.iloc[-1] > (thit + dt_hit):
+                itend = np.where(df_ik.time >= (thit + dt_hit))[0][0]
+                v_ball_post = (p_footR[it0] - p_footR[itend]) / mbal
+            else:
+                v_ball_post = 0
+                print('Problem with computing ball velocity ', Path(self.ikfiles[itrial]).stem)
+                itend = it0
 
             # create externa loads file for soccer kick -- right leg
             nfr = len(df_ik.time)
@@ -337,15 +345,14 @@ class osim_subject:
         output_settings = os.path.join(self.id_directory, 'settings')
         if not os.path.isdir(output_settings):
             os.mkdir(output_settings)
-        for itrial in range(0,self.nfiles):
-            # solve inverse dynamics for this trial
-            idyn = InverseDynamics(model_input=self.modelpath,
-                                   xml_input=self.general_id_settings,
-                                   xml_output=output_settings,
-                                   mot_files=self.ikfiles[itrial],
-                                   sto_output=self.id_directory,
-                                   xml_forces=self.extload_settings,
-                                   forces_dir=self.ext_loads_dir)
+        # solve inverse dynamics for this trial
+        InverseDynamics(model_input=self.modelpath,
+                        xml_input=self.general_id_settings,
+                        xml_output=output_settings,
+                        mot_files=self.ikfiles,
+                        sto_output=self.id_directory,
+                        xml_forces=self.extload_settings,
+                        forces_dir=self.ext_loads_dir)
         if boolRead:
             self.read_inverse_dynamics()
 
@@ -372,6 +379,26 @@ class osim_subject:
 
     def set_ext_loads_dir(self, ext_loads_dir):
         self.ext_loads_dir = self.ext_loads_dir
+
+    # various functions for specific projects
+    def print_file_timinghit_ball(self, outfile, dt_hit = 0.1):
+        # Create the initial data
+        df = pd.DataFrame(columns=['trialname', 'time_hit_ball'])
+        for itrial in range(0, self.nfiles):
+            # convert to pandas structure
+            df_ik = self.ikdat[itrial]
+            df_pos = self.bk_pos[itrial]
+            df_vel = self.bk_vel[itrial]
+
+            # assumption that persons hits the ball at max velocity of the foot
+            thit = df_vel.time.iloc[np.argmax(df_vel.calcn_r_X)]
+
+            # add to pandas dataframe
+            new_row = pd.DataFrame({'trialname': [self.ikfiles[itrial].stem], 'time_hit_ball': [thit]})
+            df = pd.concat([df, new_row], ignore_index=True)
+        df.to_csv(outfile)
+        print('printend timing hitting ball ', outfile)
+
 
 
 def transform(Rx, Ry, Rz, bool_deg_input = True):
